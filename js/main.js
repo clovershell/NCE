@@ -8,6 +8,7 @@
 const DEFAULT_BOOK_KEY = 'NCE1';
 const PLAY_MODE_STORAGE_KEY = 'playMode';
 const BOOK_SELECTION_STORAGE_KEY = 'selectedBookKey';
+const LOOP_PLAYBACK_STORAGE_KEY = 'loopPlaybackEnabled';
 
 const qs = (selector, root = document) => root.querySelector(selector);
 const qsa = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -25,6 +26,7 @@ class ReadingSystem {
       currentLyricIndex: -1,
       currentUnitIndex: -1,
       playMode: 'single',
+      isLoopPlaybackEnabled: false,
       singlePlayEndTime: null,
       playbackRate: 1.0,
       translationMode: 'show',
@@ -47,6 +49,7 @@ class ReadingSystem {
       duration: qs('#duration'),
       speedBtn: qs('#speedBtn'),
       speedText: qs('#speedText'),
+      loopToggleBtn: qs('#loopToggleBtn'),
       bookCover: qs('#bookCover'),
       unitSelect: qs('#unitSelect'),
       bookSelects: qsa('.book-select'),
@@ -72,6 +75,8 @@ class ReadingSystem {
     this.bindEvents();
     this.loadPlayModePreference();
     this.updatePlayModeUI();
+    this.loadLoopPlaybackPreference();
+    this.updateLoopPlaybackUI();
     this.loadTranslationPreference();
     this.updateTranslationToggle();
     await this.loadUnitFromStorage();
@@ -273,6 +278,7 @@ class ReadingSystem {
     if (this.dom.audioPlayer) {
       this.setPlayButtonDisabled(true);
       this.dom.audioPlayer.src = unit.audio;
+      this.dom.audioPlayer.loop = this.state.isLoopPlaybackEnabled;
       this.dom.audioPlayer.load();
     }
 
@@ -538,6 +544,33 @@ class ReadingSystem {
     }
   }
 
+  toggleLoopPlayback() {
+    this.state.isLoopPlaybackEnabled = !this.state.isLoopPlaybackEnabled;
+    localStorage.setItem(LOOP_PLAYBACK_STORAGE_KEY, String(this.state.isLoopPlaybackEnabled));
+    this.syncLoopPlayback();
+    this.updateLoopPlaybackUI();
+  }
+
+  loadLoopPlaybackPreference() {
+    this.state.isLoopPlaybackEnabled = localStorage.getItem(LOOP_PLAYBACK_STORAGE_KEY) === 'true';
+    this.syncLoopPlayback();
+  }
+
+  syncLoopPlayback() {
+    if (!this.dom.audioPlayer) return;
+    this.dom.audioPlayer.loop = this.state.isLoopPlaybackEnabled;
+  }
+
+  updateLoopPlaybackUI() {
+    if (!this.dom.loopToggleBtn) return;
+
+    const enabled = this.state.isLoopPlaybackEnabled;
+    this.dom.loopToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    this.dom.loopToggleBtn.classList.toggle('active', enabled);
+    this.dom.loopToggleBtn.title = enabled ? '关闭循环播放' : '开启循环播放';
+    this.dom.loopToggleBtn.setAttribute('aria-label', enabled ? '关闭循环播放' : '开启循环播放');
+  }
+
   handleAudioEnded() {
     if (this.state.playMode === 'continuous') {
       this.playNextLyric();
@@ -742,7 +775,8 @@ class ReadingSystem {
       !this.dom.speedBtn ||
       !this.dom.progressBar ||
       !this.dom.audioPlayer ||
-      !this.dom.playModeBtn
+      !this.dom.playModeBtn ||
+      !this.dom.loopToggleBtn
     ) {
       return;
     }
@@ -757,6 +791,10 @@ class ReadingSystem {
 
     this.dom.speedBtn.addEventListener('click', () => {
       this.cyclePlaybackSpeed();
+    });
+
+    this.dom.loopToggleBtn.addEventListener('click', () => {
+      this.toggleLoopPlayback();
     });
 
     const seekByClientX = (clientX) => {
